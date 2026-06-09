@@ -5,8 +5,10 @@ import dynamic from "next/dynamic";
 import TimeControls from "./ui/TimeControls";
 import SearchBar from "./ui/SearchBar";
 import SatellitePanel from "./ui/SatellitePanel";
+import MissionPanel from "./ui/MissionPanel";
 import { useCatalogStore } from "@/lib/sim/catalogStore";
 import { useUiStore } from "@/lib/sim/uiStore";
+import { useMissionStore } from "@/lib/mission/missionStore";
 
 const SceneRoot = dynamic(() => import("./scene/SceneRoot"), { ssr: false });
 
@@ -31,6 +33,7 @@ export default function App() {
   const load = useCatalogStore((s) => s.load);
   const status = useCatalogStore((s) => s.status);
   const catalog = useCatalogStore((s) => s.catalog);
+  const missionStatus = useMissionStore((s) => s.status);
 
   useEffect(() => {
     load();
@@ -44,8 +47,9 @@ export default function App() {
         <div className="flex justify-center pt-5">
           <SearchBar />
         </div>
-        <div className="flex flex-1 items-start justify-end p-5">
-          <SatellitePanel />
+        <div className="flex flex-1 flex-col items-end gap-3 p-5">
+          <MissionPanel />
+          {missionStatus === "idle" && <SatellitePanel />}
         </div>
         <div className="flex justify-center pb-6">
           <TimeControls />

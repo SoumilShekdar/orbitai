@@ -9,6 +9,8 @@ import Atmosphere from "./Atmosphere";
 import Satellites from "./Satellites";
 import Picking from "./Picking";
 import OrbitTrail from "./OrbitTrail";
+import LaunchSequence from "./LaunchSequence";
+import { useMissionStore } from "@/lib/mission/missionStore";
 import { simClock } from "@/lib/sim/clock";
 import { useSimStore } from "@/lib/sim/store";
 import { useCatalogStore } from "@/lib/sim/catalogStore";
@@ -28,6 +30,7 @@ function ClockTicker() {
 export default function SceneRoot() {
   const catalog = useCatalogStore((s) => s.catalog);
   const selectedIndex = useUiStore((s) => s.selectedIndex);
+  const missionStatus = useMissionStore((s) => s.status);
   const controlsRef = useRef<React.ComponentRef<typeof CameraControls>>(null);
 
   useEffect(() => {
@@ -56,6 +59,7 @@ export default function SceneRoot() {
       {catalog && <Satellites catalog={catalog} />}
       {catalog && <Picking catalog={catalog} />}
       {catalog && selectedIndex !== null && <OrbitTrail catalog={catalog} index={selectedIndex} />}
+      {missionStatus === "launching" && <LaunchSequence />}
       <Stars radius={120} depth={60} count={6000} factor={3.5} saturation={0} fade speed={0.3} />
       <CameraControls
         ref={controlsRef}

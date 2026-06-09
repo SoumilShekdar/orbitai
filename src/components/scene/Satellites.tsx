@@ -50,7 +50,7 @@ void main() {
   );
 
   vec4 mv = modelViewMatrix * vec4(pos, 1.0);
-  gl_PointSize = clamp(elemC.y * uScale / -mv.z, 1.0, 64.0);
+  gl_PointSize = clamp(elemC.y * uScale / -mv.z, 1.0, 36.0);
   gl_Position = projectionMatrix * mv;
   vColor = aColor;
 }
