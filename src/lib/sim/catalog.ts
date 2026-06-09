@@ -1,6 +1,6 @@
 import * as THREE from "three";
-import { Elements, elementsFromTle, positionEciKm } from "./kepler";
-import { KM_TO_UNITS } from "../constants";
+import { Elements, elementsFromTle, positionEciKm, MU } from "./kepler";
+import { EARTH_RADIUS_KM, KM_TO_UNITS } from "../constants";
 
 export interface SatMeta {
   noradId: number;
@@ -126,6 +126,36 @@ export class SatCatalog {
     this.setSize(i, 2.2);
     this.version++;
     return i;
+  }
+
+  // Move a satellite to a new circular altitude, preserving its current
+  // angular position so the point doesn't jump.
+  changeAltitude(i: number, newAltKm: number, timeMs: number) {
+    const el = this.elements[i];
+    const dt = (timeMs - el.epochMs) / 1000;
+    const mNow = (el.m0 + el.nRadS * dt) % (2 * Math.PI);
+    const raanNow = el.raan0 + el.raanDot * dt;
+    const argpNow = el.argp0 + el.argpDot * dt;
+
+    el.aKm = EARTH_RADIUS_KM + newAltKm;
+    el.nRadS = Math.sqrt(MU / (el.aKm * el.aKm * el.aKm));
+    const J2 = 1.08262668e-3;
+    const p = el.aKm * (1 - el.e * el.e);
+    const factor = 1.5 * J2 * (6378.137 / p) ** 2 * el.nRadS;
+    el.raanDot = -factor * Math.cos(el.incRad);
+    el.argpDot = 0.5 * factor * (5 * Math.cos(el.incRad) ** 2 - 1);
+    el.epochMs = timeMs;
+    el.m0 = mNow;
+    el.raan0 = raanNow;
+    el.argp0 = argpNow;
+
+    this.writeStaticAttributes(i, el);
+    this.setSize(i, 2.2);
+    const dtRef = (this.refMs - timeMs) / 1000;
+    this.elemA[i * 4 + 3] = raanNow + el.raanDot * dtRef;
+    this.elemB[i * 4 + 0] = argpNow + el.argpDot * dtRef;
+    this.elemB[i * 4 + 1] = mNow + el.nRadS * dtRef;
+    this.version++;
   }
 
   positionScene(i: number, timeMs: number, out: THREE.Vector3): THREE.Vector3 {

@@ -40,9 +40,13 @@ export default function SceneRoot() {
     };
   });
 
+  const missionStats = useMissionStore((s) => s.stats);
   useEffect(() => {
-    catalog?.recolor(selectedIndex);
-  }, [catalog, selectedIndex]);
+    catalog?.recolor(
+      selectedIndex,
+      missionStats ? new Set(missionStats.nearbyIndices) : undefined,
+    );
+  }, [catalog, selectedIndex, missionStats]);
 
   return (
     <Canvas

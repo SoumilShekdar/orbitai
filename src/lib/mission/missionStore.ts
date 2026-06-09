@@ -1,8 +1,10 @@
 import { create } from "zustand";
-import { ParsedMission } from "./types";
+import { ParsedMission, MissionReport } from "./types";
+import { analyzeTraffic, TrafficStats } from "./analysis";
 import { useCatalogStore } from "@/lib/sim/catalogStore";
 import { useUiStore } from "@/lib/sim/uiStore";
 import { useSimStore } from "@/lib/sim/store";
+import { simClock } from "@/lib/sim/clock";
 import { Elements } from "@/lib/sim/kepler";
 
 export type MissionStatus = "idle" | "parsing" | "ready" | "launching" | "orbiting";
@@ -14,11 +16,16 @@ interface MissionState {
   prompt: string;
   params: ParsedMission | null;
   satIndex: number | null;
+  stats: TrafficStats | null;
+  report: MissionReport | null;
+  analyzing: boolean;
   error: string | null;
   parse: (prompt: string) => Promise<void>;
   launch: () => void;
   insertSatellite: (elements: Elements) => void;
   finishLaunch: () => void;
+  analyze: () => Promise<void>;
+  acceptRecommendation: () => void;
   reset: () => void;
 }
 
@@ -27,10 +34,21 @@ export const useMissionStore = create<MissionState>((set, get) => ({
   prompt: "",
   params: null,
   satIndex: null,
+  stats: null,
+  report: null,
+  analyzing: false,
   error: null,
 
   parse: async (prompt: string) => {
-    set({ status: "parsing", prompt, params: null, satIndex: null, error: null });
+    set({
+      status: "parsing",
+      prompt,
+      params: null,
+      satIndex: null,
+      stats: null,
+      report: null,
+      error: null,
+    });
     useUiStore.getState().setSelected(null);
     try {
       const res = await fetch("/api/parse-mission", {
@@ -75,7 +93,82 @@ export const useMissionStore = create<MissionState>((set, get) => ({
     const { satIndex } = get();
     if (satIndex !== null) useUiStore.getState().setSelected(satIndex);
     set({ status: "orbiting" });
+    void get().analyze();
   },
 
-  reset: () => set({ status: "idle", prompt: "", params: null, satIndex: null, error: null }),
+  analyze: async () => {
+    const { satIndex, params } = get();
+    const catalog = useCatalogStore.getState().catalog;
+    if (satIndex === null || !params || !catalog) return;
+
+    set({ analyzing: true, report: null });
+    const stats = analyzeTraffic(catalog, satIndex, params.massKg);
+    set({ stats });
+    catalog.recolor(useUiStore.getState().selectedIndex, new Set(stats.nearbyIndices));
+
+    try {
+      const res = await fetch("/api/analyze-mission", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mission: {
+            name: params.missionName,
+            massKg: params.massKg,
+            orbitType: params.orbitType,
+            altitudeKm: params.altitudeKm,
+            inclinationDeg: params.inclinationDeg,
+          },
+          traffic: {
+            satellitesWithin20km: stats.altBandCount,
+            satellitesWithin2degInclination: stats.inclBandCount,
+            estimatedConjunctionsPerYear: stats.estConjunctionsPerYear,
+            density: stats.densityLabel,
+            nearbyConstellations: stats.nearbyOperators,
+            expectedLifetimeYears: stats.lifetimeYears,
+            groundRevisitHours: stats.revisitHours,
+          },
+          candidateAltitudes: stats.candidates,
+        }),
+      });
+      if (!res.ok) throw new Error(`analyze failed: ${res.status}`);
+      const report = (await res.json()) as MissionReport;
+      set({ report, analyzing: false });
+    } catch (err) {
+      console.error(err);
+      set({ analyzing: false, error: "Report generation failed." });
+    }
+  },
+
+  acceptRecommendation: () => {
+    const { satIndex, params, report } = get();
+    const catalog = useCatalogStore.getState().catalog;
+    if (satIndex === null || !params || !report || !catalog) return;
+    catalog.changeAltitude(satIndex, report.recommendedAltitudeKm, simClock.simTimeMs);
+    set({
+      params: {
+        ...params,
+        altitudeKm: report.recommendedAltitudeKm,
+        inclinationDeg:
+          params.orbitType === "SSO"
+            ? 96.6 + report.recommendedAltitudeKm * 0.00185
+            : params.inclinationDeg,
+      },
+    });
+    void get().analyze();
+  },
+
+  reset: () => {
+    const catalog = useCatalogStore.getState().catalog;
+    catalog?.recolor(useUiStore.getState().selectedIndex);
+    set({
+      status: "idle",
+      prompt: "",
+      params: null,
+      satIndex: null,
+      stats: null,
+      report: null,
+      analyzing: false,
+      error: null,
+    });
+  },
 }));
