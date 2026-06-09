@@ -101,6 +101,17 @@ export class SatCatalog {
     this.elemC[i * 2 + 1] = size;
   }
 
+  // Single source of truth for point colors: launched > nearby > selected > default.
+  recolor(selected: number | null, nearby?: Set<number>) {
+    for (let i = 0; i < this.count; i++) {
+      if (this.meta[i].launched) this.setColor(i, LAUNCHED_COLOR);
+      else if (nearby?.has(i)) this.setColor(i, NEARBY_COLOR);
+      else if (i === selected) this.setColor(i, SELECTED_COLOR);
+      else this.setColor(i, DEFAULT_COLOR);
+    }
+    this.version++;
+  }
+
   addSatellite(meta: Omit<SatMeta, "index">, el: Elements): number {
     if (this.count >= this.capacity) throw new Error("catalog capacity exceeded");
     const i = this.count++;

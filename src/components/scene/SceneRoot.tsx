@@ -1,15 +1,19 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useEffect, useRef } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { CameraControls, Stars } from "@react-three/drei";
 import { EffectComposer, Bloom } from "@react-three/postprocessing";
 import Earth from "./Earth";
 import Atmosphere from "./Atmosphere";
 import Satellites from "./Satellites";
+import Picking from "./Picking";
+import OrbitTrail from "./OrbitTrail";
 import { simClock } from "@/lib/sim/clock";
 import { useSimStore } from "@/lib/sim/store";
 import { useCatalogStore } from "@/lib/sim/catalogStore";
+import { useUiStore } from "@/lib/sim/uiStore";
+import { cameraRig } from "@/lib/cameraRig";
 
 function ClockTicker() {
   useFrame((_, delta) => {
@@ -23,6 +27,20 @@ function ClockTicker() {
 
 export default function SceneRoot() {
   const catalog = useCatalogStore((s) => s.catalog);
+  const selectedIndex = useUiStore((s) => s.selectedIndex);
+  const controlsRef = useRef<React.ComponentRef<typeof CameraControls>>(null);
+
+  useEffect(() => {
+    cameraRig.controls = controlsRef.current;
+    return () => {
+      cameraRig.controls = null;
+    };
+  });
+
+  useEffect(() => {
+    catalog?.recolor(selectedIndex);
+  }, [catalog, selectedIndex]);
+
   return (
     <Canvas
       camera={{ position: [0, 1.4, 3.2], fov: 45, near: 0.01, far: 1000 }}
@@ -36,8 +54,11 @@ export default function SceneRoot() {
         <Atmosphere />
       </Suspense>
       {catalog && <Satellites catalog={catalog} />}
+      {catalog && <Picking catalog={catalog} />}
+      {catalog && selectedIndex !== null && <OrbitTrail catalog={catalog} index={selectedIndex} />}
       <Stars radius={120} depth={60} count={6000} factor={3.5} saturation={0} fade speed={0.3} />
       <CameraControls
+        ref={controlsRef}
         makeDefault
         minDistance={1.15}
         maxDistance={30}
