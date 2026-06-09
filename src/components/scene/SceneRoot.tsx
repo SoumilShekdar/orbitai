@@ -6,8 +6,10 @@ import { CameraControls, Stars } from "@react-three/drei";
 import { EffectComposer, Bloom } from "@react-three/postprocessing";
 import Earth from "./Earth";
 import Atmosphere from "./Atmosphere";
+import Satellites from "./Satellites";
 import { simClock } from "@/lib/sim/clock";
 import { useSimStore } from "@/lib/sim/store";
+import { useCatalogStore } from "@/lib/sim/catalogStore";
 
 function ClockTicker() {
   useFrame((_, delta) => {
@@ -20,6 +22,7 @@ function ClockTicker() {
 }
 
 export default function SceneRoot() {
+  const catalog = useCatalogStore((s) => s.catalog);
   return (
     <Canvas
       camera={{ position: [0, 1.4, 3.2], fov: 45, near: 0.01, far: 1000 }}
@@ -32,6 +35,7 @@ export default function SceneRoot() {
         <Earth />
         <Atmosphere />
       </Suspense>
+      {catalog && <Satellites catalog={catalog} />}
       <Stars radius={120} depth={60} count={6000} factor={3.5} saturation={0} fade speed={0.3} />
       <CameraControls
         makeDefault
