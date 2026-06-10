@@ -1,5 +1,6 @@
 import * as THREE from "three";
-import { Elements, MU } from "@/lib/sim/kepler";
+import { Elements, positionEciKm } from "@/lib/sim/kepler";
+import { elementsForOrbit, estimateBstar } from "@/lib/sim/synthTle";
 import { gmst } from "@/lib/sun";
 import { EARTH_RADIUS_KM, KM_TO_UNITS } from "@/lib/constants";
 
@@ -15,37 +16,25 @@ export function siteDirectionScene(latDeg: number, lonDeg: number, timeMs: numbe
   return new THREE.Vector3(x, z, -y);
 }
 
-function eciSceneFromU(u: number, raan: number, incRad: number, r: number): THREE.Vector3 {
-  const cosO = Math.cos(raan);
-  const sinO = Math.sin(raan);
-  const cosi = Math.cos(incRad);
-  const sini = Math.sin(incRad);
-  const cosu = Math.cos(u);
-  const sinu = Math.sin(u);
-  const x = r * (cosO * cosu - sinO * sinu * cosi);
-  const y = r * (sinO * cosu + cosO * sinu * cosi);
-  const z = r * sinu * sini;
-  return new THREE.Vector3(x * KM_TO_UNITS, z * KM_TO_UNITS, -y * KM_TO_UNITS);
-}
-
 export interface InsertionPlan {
   elements: Elements;
   insertionPosScene: THREE.Vector3; // where the rocket releases the satellite
 }
 
 // Build a circular orbit whose plane contains the launch site, inserting the
-// satellite a few degrees downrange of the pad at insertionTimeMs.
+// satellite a few degrees downrange of the pad at insertionTimeMs. The orbit
+// is SGP4-initialized via a synthesized TLE (B* estimated from mass), so the
+// launched satellite evolves exactly like the real catalog.
 export function planInsertion(
   altitudeKm: number,
   inclinationDeg: number,
   siteLatDeg: number,
   siteLonDeg: number,
   insertionTimeMs: number,
+  massKg: number,
   downrangeDeg = 10,
 ): InsertionPlan {
   const incRad = Math.max(0.001, inclinationDeg * DEG);
-  const aKm = EARTH_RADIUS_KM + altitudeKm;
-  const nRadS = Math.sqrt(MU / (aKm * aKm * aKm));
 
   const lat = siteLatDeg * DEG;
   const lonEci = siteLonDeg * DEG + gmst(insertionTimeMs);
@@ -57,27 +46,25 @@ export function planInsertion(
   const raan = lonEci - Math.atan2(Math.cos(incRad) * Math.sin(u0), Math.cos(u0));
   const uIns = u0 + downrangeDeg * DEG;
 
-  const e = 0.0005;
-  const elements: Elements = {
-    aKm,
-    e,
-    incRad,
-    raan0: raan,
-    argp0: 0,
-    m0: uIns, // e ~ 0 so mean anomaly ~ argument of latitude
-    nRadS,
-    raanDot: 0,
-    argpDot: 0,
+  const elements = elementsForOrbit({
+    noradId: 90000,
     epochMs: insertionTimeMs,
-  };
-  // J2 rates so the new satellite precesses like everything else.
-  const J2 = 1.08262668e-3;
-  const p = aKm * (1 - e * e);
-  const factor = 1.5 * J2 * (6378.137 / p) ** 2 * nRadS;
-  elements.raanDot = -factor * Math.cos(incRad);
-  elements.argpDot = 0.5 * factor * (5 * Math.cos(incRad) ** 2 - 1);
+    incRad,
+    raanRad: raan,
+    e: 0.0005,
+    argpRad: 0,
+    mRad: uIns, // e ~ 0 so mean anomaly ~ argument of latitude
+    aKm: EARTH_RADIUS_KM + altitudeKm,
+    bstar: estimateBstar(massKg),
+  });
 
-  return { elements, insertionPosScene: eciSceneFromU(uIns, raan, incRad, aKm) };
+  const eci = positionEciKm(elements, insertionTimeMs, [0, 0, 0]);
+  const insertionPosScene = new THREE.Vector3(
+    eci[0] * KM_TO_UNITS,
+    eci[2] * KM_TO_UNITS,
+    -eci[1] * KM_TO_UNITS,
+  );
+  return { elements, insertionPosScene };
 }
 
 const easeInOut = (t: number) => t * t * (3 - 2 * t);

@@ -36,6 +36,7 @@ export default function LaunchSequence() {
       params.launchSite.lat,
       params.launchSite.lon,
       insertionTimeMs,
+      params.massKg,
     );
     const curve = makeAscentCurve(siteDir, insertion.insertionPosScene);
 

@@ -1,5 +1,6 @@
 import * as THREE from "three";
-import { Elements, elementsFromTle, positionEciKm, MU } from "./kepler";
+import { Elements, elementsFromTle, positionEciKm, dragTempa } from "./kepler";
+import { elementsForOrbit } from "./synthTle";
 import { EARTH_RADIUS_KM, KM_TO_UNITS } from "../constants";
 
 export interface SatMeta {
@@ -30,8 +31,8 @@ export class SatCatalog {
   capacity = 0;
   refMs = 0;
 
-  elemA!: Float32Array; // a(units), e, inc, raan@ref
-  elemB!: Float32Array; // argp@ref, M@ref, n(rad/s), raanDot(rad/s)
+  elemA!: Float32Array; // a@ref(units, drag-decayed), e, inc, raan@ref
+  elemB!: Float32Array; // argp@ref, M@ref, mdot@ref(rad/s), raanDot@ref(rad/s)
   elemC!: Float32Array; // argpDot(rad/s), pointSize
   colors!: Float32Array;
 
@@ -56,33 +57,37 @@ export class SatCatalog {
       const i = cat.count++;
       cat.meta.push({ noradId, name, operator, index: i });
       cat.elements.push(el);
-      cat.writeStaticAttributes(i, el);
       cat.setColor(i, DEFAULT_COLOR);
+      cat.setSize(i, 1.0);
     }
     cat.rebase(nowMs);
     return cat;
   }
 
-  private writeStaticAttributes(i: number, el: Elements) {
-    this.elemA[i * 4 + 0] = el.aKm * KM_TO_UNITS;
+  // Elements evaluated at refMs: drag-decayed a, angles with their t^2 drag
+  // terms folded in, and effective linear rates so the shader's cheap
+  // "angle + rate * uTime" stays within metres of the CPU model for the
+  // whole rebase window.
+  private writeAttributes(i: number, el: Elements) {
+    const TWO_PI = 2 * Math.PI;
+    const dt = (this.refMs - el.epochMs) / 1000;
+    const tempa = dragTempa(el, dt);
+    this.elemA[i * 4 + 0] = el.aKm * tempa * tempa * KM_TO_UNITS;
     this.elemA[i * 4 + 1] = el.e;
     this.elemA[i * 4 + 2] = el.incRad;
-    this.elemB[i * 4 + 2] = el.nRadS;
-    this.elemB[i * 4 + 3] = el.raanDot;
+    this.elemA[i * 4 + 3] = (el.raan0 + el.raanDot * dt + el.nodecf * dt * dt) % TWO_PI;
+    this.elemB[i * 4 + 0] = (el.argp0 + el.argpDot * dt) % TWO_PI;
+    this.elemB[i * 4 + 1] = (el.m0 + el.mdot * dt + el.mddot * dt * dt) % TWO_PI;
+    this.elemB[i * 4 + 2] = el.mdot + 2 * el.mddot * dt;
+    this.elemB[i * 4 + 3] = el.raanDot + 2 * el.nodecf * dt;
     this.elemC[i * 2 + 0] = el.argpDot;
-    this.elemC[i * 2 + 1] = 1.0;
   }
 
-  // Recompute raan/argp/M at refMs for every satellite.
+  // Re-evaluate every satellite's attributes at refMs.
   rebase(refMs: number) {
     this.refMs = refMs;
-    const TWO_PI = 2 * Math.PI;
     for (let i = 0; i < this.count; i++) {
-      const el = this.elements[i];
-      const dt = (refMs - el.epochMs) / 1000;
-      this.elemA[i * 4 + 3] = (el.raan0 + el.raanDot * dt) % TWO_PI;
-      this.elemB[i * 4 + 0] = (el.argp0 + el.argpDot * dt) % TWO_PI;
-      this.elemB[i * 4 + 1] = (el.m0 + el.nRadS * dt) % TWO_PI;
+      this.writeAttributes(i, this.elements[i]);
     }
     this.version++;
   }
@@ -117,11 +122,7 @@ export class SatCatalog {
     const i = this.count++;
     this.meta.push({ ...meta, index: i });
     this.elements.push(el);
-    this.writeStaticAttributes(i, el);
-    const dt = (this.refMs - el.epochMs) / 1000;
-    this.elemA[i * 4 + 3] = el.raan0 + el.raanDot * dt;
-    this.elemB[i * 4 + 0] = el.argp0 + el.argpDot * dt;
-    this.elemB[i * 4 + 1] = el.m0 + el.nRadS * dt;
+    this.writeAttributes(i, el);
     this.setColor(i, LAUNCHED_COLOR);
     this.setSize(i, 2.2);
     this.version++;
@@ -129,32 +130,26 @@ export class SatCatalog {
   }
 
   // Move a satellite to a new circular altitude, preserving its current
-  // angular position so the point doesn't jump.
+  // angular position so the point doesn't jump. Re-runs SGP4 init via a
+  // synthesized TLE so the new orbit carries proper J2 and drag rates.
   changeAltitude(i: number, newAltKm: number, timeMs: number) {
     const el = this.elements[i];
     const dt = (timeMs - el.epochMs) / 1000;
-    const mNow = (el.m0 + el.nRadS * dt) % (2 * Math.PI);
-    const raanNow = el.raan0 + el.raanDot * dt;
-    const argpNow = el.argp0 + el.argpDot * dt;
-
-    el.aKm = EARTH_RADIUS_KM + newAltKm;
-    el.nRadS = Math.sqrt(MU / (el.aKm * el.aKm * el.aKm));
-    const J2 = 1.08262668e-3;
-    const p = el.aKm * (1 - el.e * el.e);
-    const factor = 1.5 * J2 * (6378.137 / p) ** 2 * el.nRadS;
-    el.raanDot = -factor * Math.cos(el.incRad);
-    el.argpDot = 0.5 * factor * (5 * Math.cos(el.incRad) ** 2 - 1);
-    el.epochMs = timeMs;
-    el.m0 = mNow;
-    el.raan0 = raanNow;
-    el.argp0 = argpNow;
-
-    this.writeStaticAttributes(i, el);
+    const TWO_PI = 2 * Math.PI;
+    const next = elementsForOrbit({
+      noradId: this.meta[i].noradId,
+      epochMs: timeMs,
+      incRad: el.incRad,
+      raanRad: (el.raan0 + el.raanDot * dt + el.nodecf * dt * dt) % TWO_PI,
+      e: el.e,
+      argpRad: (el.argp0 + el.argpDot * dt) % TWO_PI,
+      mRad: (el.m0 + el.mdot * dt + el.mddot * dt * dt) % TWO_PI,
+      aKm: EARTH_RADIUS_KM + newAltKm,
+      bstar: el.bstar,
+    });
+    this.elements[i] = next;
+    this.writeAttributes(i, next);
     this.setSize(i, 2.2);
-    const dtRef = (this.refMs - timeMs) / 1000;
-    this.elemA[i * 4 + 3] = raanNow + el.raanDot * dtRef;
-    this.elemB[i * 4 + 0] = argpNow + el.argpDot * dtRef;
-    this.elemB[i * 4 + 1] = mNow + el.nRadS * dtRef;
     this.version++;
   }
 

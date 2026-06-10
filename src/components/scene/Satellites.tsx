@@ -10,8 +10,8 @@ import { useSimStore } from "@/lib/sim/store";
 const VERTEX = /* glsl */ `
 uniform float uTime;   // sim seconds since catalog refMs
 uniform float uScale;  // point size factor (pixels * world units)
-attribute vec4 elemA;  // a(units), e, inc, raan@ref
-attribute vec4 elemB;  // argp@ref, M@ref, n, raanDot
+attribute vec4 elemA;  // a@ref(units), e, inc, raan@ref
+attribute vec4 elemB;  // argp@ref, M@ref, mdot@ref, raanDot@ref
 attribute vec2 elemC;  // argpDot, size
 attribute vec3 aColor;
 varying vec3 vColor;
@@ -24,8 +24,8 @@ void main() {
   float argp = elemB.x + elemC.x * uTime;
   float M = elemB.y + elemB.z * uTime;
 
-  // Kepler's equation, Newton iterations (e is small for nearly all sats).
-  float E = M;
+  // Kepler's equation, Newton iterations seeded for high-e orbits too.
+  float E = M + e * sin(M);
   for (int k = 0; k < 4; k++) {
     E = E - (E - e * sin(E) - M) / (1.0 - e * cos(E));
   }

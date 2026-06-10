@@ -1,3 +1,5 @@
+import { twoline2satrec } from "satellite.js";
+
 export interface ParsedTle {
   noradId: number;
   name: string;
@@ -9,8 +11,9 @@ export interface ParsedTle {
   epoch: Date;
 }
 
-const MU = 398600.4418; // km^3/s^2
+const RE_KM = 6378.135; // WGS72 equatorial radius used by SGP4
 const EARTH_RADIUS_KM = 6371;
+const DEG = 180 / Math.PI;
 
 // Alpha-5 catalog numbers: first char A-Z (minus I, O) encodes 10-33.
 function parseCatalogNumber(field: string): number {
@@ -25,15 +28,9 @@ function parseCatalogNumber(field: string): number {
   return parseInt(trimmed, 10);
 }
 
-function parseEpoch(line1: string): Date {
-  const yy = parseInt(line1.slice(18, 20), 10);
-  const year = yy >= 57 ? 1900 + yy : 2000 + yy;
-  const dayOfYear = parseFloat(line1.slice(20, 32));
-  const ms = Date.UTC(year, 0, 1) + (dayOfYear - 1) * 86400000;
-  return new Date(ms);
-}
-
-// Parses CelesTrak 3-line element sets (name + TLE pair).
+// Parses CelesTrak 3-line element sets (name + TLE pair). Each set runs
+// through SGP4 initialization, so derived fields use the recovered Brouwer
+// semi-major axis and objects SGP4 can't propagate are dropped here.
 export function parseTleCatalog(text: string): ParsedTle[] {
   const lines = text.split(/\r?\n/);
   const result: ParsedTle[] = [];
@@ -43,23 +40,24 @@ export function parseTleCatalog(text: string): ParsedTle[] {
     const l2 = lines[i + 2];
     if (!name || !l1?.startsWith("1 ") || !l2?.startsWith("2 ")) continue;
 
-    const inclination = parseFloat(l2.slice(8, 16));
-    const ecc = parseFloat(`0.${l2.slice(26, 33).trim()}`);
-    const meanMotion = parseFloat(l2.slice(52, 63)); // rev/day
-    if (!isFinite(inclination) || !isFinite(ecc) || !(meanMotion > 0)) continue;
+    let rec;
+    try {
+      rec = twoline2satrec(l1, l2);
+    } catch {
+      continue;
+    }
+    if (rec.error !== 0 || !(rec.a > 0)) continue;
 
-    const nRadS = (meanMotion * 2 * Math.PI) / 86400;
-    const semiMajorKm = Math.cbrt(MU / (nRadS * nRadS));
-
+    const aKm = rec.a * RE_KM;
     result.push({
       noradId: parseCatalogNumber(l1.slice(2, 7)),
       name,
       tleLine1: l1,
       tleLine2: l2,
-      inclination,
-      apoapsisKm: semiMajorKm * (1 + ecc) - EARTH_RADIUS_KM,
-      periapsisKm: semiMajorKm * (1 - ecc) - EARTH_RADIUS_KM,
-      epoch: parseEpoch(l1),
+      inclination: rec.inclo * DEG,
+      apoapsisKm: aKm * (1 + rec.ecco) - EARTH_RADIUS_KM,
+      periapsisKm: aKm * (1 - rec.ecco) - EARTH_RADIUS_KM,
+      epoch: new Date((rec.jdsatepoch - 2440587.5) * 86400000),
     });
   }
   return result;

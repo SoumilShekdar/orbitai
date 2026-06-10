@@ -1,83 +1,96 @@
-// Demo-grade analytic propagation: Keplerian elements from each TLE plus J2
-// secular precession of RAAN/argp. The same math runs in the vertex shader
-// (Satellites.tsx) and here on the CPU for picking/analysis, so rendered
-// points, trails, and panel stats always agree.
+// SGP4-secular analytic propagation. Per-satellite elements and secular rates
+// come from satellite.js's real SGP4 initialization (Kozai->Brouwer mean
+// motion recovery, J2 secular rates for RAAN/argp/mean anomaly, B*-drag
+// coefficients), then position is closed-form. The same math runs in the
+// vertex shader (Satellites.tsx) and here on the CPU for picking/analysis, so
+// rendered points, trails, and panel stats always agree. Versus full SGP4 the
+// error is the bounded short-period oscillation (~5-15 km) rather than a
+// drift that grows tens of km per day; only deep-space resonance/lunisolar
+// periodics (e.g. Molniya) are not modeled.
 
-export const MU = 398600.4418; // km^3/s^2
-const J2 = 1.08262668e-3;
-const RE_J2 = 6378.137; // km, equatorial radius used in J2 rates
-const DEG = Math.PI / 180;
+import { twoline2satrec, type SatRec } from "satellite.js";
+
+export const MU = 398600.8; // km^3/s^2 (WGS72, matches SGP4)
+const RE_KM = 6378.135; // km, WGS72 equatorial radius used by SGP4
 
 export interface Elements {
-  aKm: number; // semi-major axis
+  aKm: number; // Brouwer-mean semi-major axis at epoch
   e: number;
   incRad: number;
   raan0: number; // at epochMs
   argp0: number;
   m0: number;
-  nRadS: number; // mean motion, rad/s
+  nRadS: number; // Brouwer mean motion, rad/s (for period display)
+  mdot: number; // mean anomaly rate incl. J2 secular, rad/s
   raanDot: number; // rad/s
-  argpDot: number;
+  argpDot: number; // rad/s
+  nodecf: number; // RAAN drag term, rad/s^2
+  cc1: number; // semi-major-axis drag decay coefficient, 1/s
+  mddot: number; // mean anomaly drag term, rad/s^2
+  bstar: number; // TLE B* (1/earth-radii), kept for re-synthesis
   epochMs: number;
 }
 
-// TLE epoch (line 1 cols 19-32): YYDDD.DDDDDDDD.
-function epochMsFromLine1(line1: string): number {
-  const yy = parseInt(line1.slice(18, 20), 10);
-  const year = yy >= 57 ? 1900 + yy : 2000 + yy;
-  const dayOfYear = parseFloat(line1.slice(20, 32));
-  return Date.UTC(year, 0, 1) + (dayOfYear - 1) * 86400000;
-}
-
-// Mean elements read straight off the TLE (fixed-column format).
-export function elementsFromTle(tleLine1: string, tleLine2: string): Elements | null {
-  if (!tleLine1?.startsWith("1 ") || !tleLine2?.startsWith("2 ")) return null;
-  const incRad = parseFloat(tleLine2.slice(8, 16)) * DEG;
-  const raan0 = parseFloat(tleLine2.slice(17, 25)) * DEG;
-  const e = parseFloat(`0.${tleLine2.slice(26, 33).trim()}`);
-  const argp0 = parseFloat(tleLine2.slice(34, 42)) * DEG;
-  const m0 = parseFloat(tleLine2.slice(43, 51)) * DEG;
-  const meanMotion = parseFloat(tleLine2.slice(52, 63)); // rev/day
-  const epochMs = epochMsFromLine1(tleLine1);
-  if (![incRad, raan0, e, argp0, m0, epochMs].every(isFinite) || !(meanMotion > 0)) return null;
-
-  const nRadS = (meanMotion * 2 * Math.PI) / 86400;
-  const aKm = Math.cbrt(MU / (nRadS * nRadS));
-  const p = aKm * (1 - e * e);
-  const factor = 1.5 * J2 * (RE_J2 / p) ** 2 * nRadS;
+export function elementsFromSatrec(rec: SatRec): Elements {
   return {
-    aKm,
-    e,
-    incRad,
-    raan0,
-    argp0,
-    m0,
-    nRadS,
-    raanDot: -factor * Math.cos(incRad),
-    argpDot: 0.5 * factor * (5 * Math.cos(incRad) ** 2 - 1),
-    epochMs,
+    aKm: rec.a * RE_KM,
+    e: rec.ecco,
+    incRad: rec.inclo,
+    raan0: rec.nodeo,
+    argp0: rec.argpo,
+    m0: rec.mo,
+    nRadS: rec.no / 60,
+    mdot: rec.mdot / 60,
+    raanDot: rec.nodedot / 60,
+    argpDot: rec.argpdot / 60,
+    nodecf: rec.nodecf / 3600,
+    // SGP4's secular drag term on mean longitude is no * t2cof * t^2.
+    mddot: (rec.no * rec.t2cof) / 3600,
+    cc1: rec.cc1 / 60,
+    bstar: rec.bstar,
+    epochMs: (rec.jdsatepoch - 2440587.5) * 86400000,
   };
 }
 
+export function elementsFromTle(tleLine1: string, tleLine2: string): Elements | null {
+  if (!tleLine1?.startsWith("1 ") || !tleLine2?.startsWith("2 ")) return null;
+  let rec: SatRec;
+  try {
+    rec = twoline2satrec(tleLine1, tleLine2);
+  } catch {
+    return null;
+  }
+  if (rec.error !== 0 || !(rec.no > 0) || !(rec.a > 0)) return null;
+  return elementsFromSatrec(rec);
+}
+
 function solveKepler(m: number, e: number): number {
-  let E = m;
-  for (let k = 0; k < 5; k++) {
+  let E = m + e * Math.sin(m); // good starter even at Molniya-class eccentricity
+  for (let k = 0; k < 8; k++) {
     E = E - (E - e * Math.sin(E) - m) / (1 - e * Math.cos(E));
   }
   return E;
 }
 
+// Drag decay factor on semi-major axis; clamped so long time jumps on
+// decayed/high-drag objects can't collapse the orbit into the Earth.
+export function dragTempa(el: Elements, dtS: number): number {
+  return Math.min(1.6, Math.max(0.4, 1 - el.cc1 * dtS));
+}
+
 // ECI position in km. `out` is [x, y, z].
 export function positionEciKm(el: Elements, timeMs: number, out: number[]): number[] {
   const dt = (timeMs - el.epochMs) / 1000;
-  const m = el.m0 + el.nRadS * dt;
-  const raan = el.raan0 + el.raanDot * dt;
+  const tempa = dragTempa(el, dt);
+  const a = el.aKm * tempa * tempa;
+  const m = el.m0 + el.mdot * dt + el.mddot * dt * dt;
+  const raan = el.raan0 + el.raanDot * dt + el.nodecf * dt * dt;
   const argp = el.argp0 + el.argpDot * dt;
   const E = solveKepler(m % (2 * Math.PI), el.e);
   const cosE = Math.cos(E);
   const sinE = Math.sin(E);
   const nu = Math.atan2(Math.sqrt(1 - el.e * el.e) * sinE, cosE - el.e);
-  const r = el.aKm * (1 - el.e * cosE);
+  const r = a * (1 - el.e * cosE);
   const u = argp + nu;
   const cosO = Math.cos(raan);
   const sinO = Math.sin(raan);
