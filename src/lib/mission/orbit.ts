@@ -1,15 +1,14 @@
 import * as THREE from "three";
-import * as satellite from "satellite.js";
 import { Elements, MU } from "@/lib/sim/kepler";
+import { gmst } from "@/lib/sun";
 import { EARTH_RADIUS_KM, KM_TO_UNITS } from "@/lib/constants";
 
 const DEG = Math.PI / 180;
 
 // Scene-space unit vector of a ground site at the given sim time.
 export function siteDirectionScene(latDeg: number, lonDeg: number, timeMs: number): THREE.Vector3 {
-  const gmst = satellite.gstime(new Date(timeMs));
   const lat = latDeg * DEG;
-  const lonEci = lonDeg * DEG + gmst;
+  const lonEci = lonDeg * DEG + gmst(timeMs);
   const x = Math.cos(lat) * Math.cos(lonEci);
   const y = Math.cos(lat) * Math.sin(lonEci);
   const z = Math.sin(lat);
@@ -48,9 +47,8 @@ export function planInsertion(
   const aKm = EARTH_RADIUS_KM + altitudeKm;
   const nRadS = Math.sqrt(MU / (aKm * aKm * aKm));
 
-  const gmst = satellite.gstime(new Date(insertionTimeMs));
   const lat = siteLatDeg * DEG;
-  const lonEci = siteLonDeg * DEG + gmst;
+  const lonEci = siteLonDeg * DEG + gmst(insertionTimeMs);
 
   // Argument of latitude of the northbound pass over the site; clamped when
   // the requested inclination can't reach the site latitude (dogleg launch).

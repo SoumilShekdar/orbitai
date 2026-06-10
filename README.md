@@ -1,36 +1,61 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# OrbitAI
 
-## Getting Started
+**The operating system for the space economy.**
 
-First, run the development server:
+A real-time 3D visualization of every active satellite in orbit, with an AI copilot that
+plans hypothetical launches, runs the ascent as a cinematic sequence, analyzes orbital
+congestion around the new satellite, and recommends safer orbits.
+
+## What it does
+
+- **Live Earth** — day/night terminator, city lights, atmosphere, stars, bloom.
+- **Live population** — ~15,600 active satellites from CelesTrak, propagated analytically
+  on the GPU (Keplerian elements + J2 precession per satellite as vertex attributes), so
+  motion stays smooth from 1x up to 1 day per second.
+- **Time controls** — pause / 1x / 10x / 100x / 1000x / 1 day-per-second.
+- **Search & inspect** — fuzzy search by name or NORAD ID, camera fly-to, hover tooltips,
+  click for live altitude / velocity / inclination / period and the orbit trail.
+- **AI launch prompt** — type e.g. *"Launch a 250kg imaging satellite from Sriharikota
+  into 550km SSO"*; the mission is parsed to structured parameters via the Vercel AI Gateway.
+- **Cinematic launch** — camera flies to the pad, chase-cam ascent, separation flash,
+  animated orbit insertion into the live simulation (~15 s).
+- **Traffic analysis** — satellites within ±20 km altitude and ±2° inclination, estimated
+  conjunctions, density score; nearby traffic renders red.
+- **AI mission report** — collision risk, density, nearby constellations, expected
+  lifetime, ground revisit, and a recommended altitude you can accept with one click.
+
+## Stack
+
+- **Next.js (App Router) + TypeScript**, deployed on Vercel
+- **Three.js via React Three Fiber** (+ drei, postprocessing)
+- **Neon Postgres + Drizzle** — cached CelesTrak GP catalog, refreshed daily by Vercel Cron
+- **Vercel AI SDK + AI Gateway** — mission parsing and report generation
+  (default model `google/gemini-2.5-flash`, override with `AI_MODEL`)
+
+## Development
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Environment (`.env.local`):
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Variable | Purpose |
+| --- | --- |
+| `DATABASE_URL` | Neon Postgres connection string |
+| `CRON_SECRET` | Bearer token protecting `/api/cron/refresh-catalog` |
+| `AI_MODEL` | Gateway model id (optional, defaults to `google/gemini-2.5-flash`) |
+| `VERCEL_OIDC_TOKEN` | Local AI Gateway auth — refresh with `vercel env pull` |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Seed/refresh the catalog:
 
-## Learn More
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/refresh-catalog
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Accuracy disclaimer
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+This is a vision demo, not aerospace software. Rendering uses a two-body Keplerian model
+with secular J2 precession (not full SGP4), conjunction counts are heuristic, and lifetime /
+revisit numbers are toy formulas. Do not plan real missions with it.

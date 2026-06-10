@@ -4,9 +4,8 @@ import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useTexture } from "@react-three/drei";
 import * as THREE from "three";
-import * as satellite from "satellite.js";
 import { simClock } from "@/lib/sim/clock";
-import { sunDirectionScene } from "@/lib/sun";
+import { gmst, sunDirectionScene } from "@/lib/sun";
 
 const VERTEX = /* glsl */ `
 varying vec3 vWorldNormal;
@@ -91,7 +90,7 @@ export default function Earth() {
     (material.uniforms.cameraPos.value as THREE.Vector3).copy(camera.position);
     if (meshRef.current) {
       // Satellites live in ECI; spin the Earth under them by sidereal time.
-      meshRef.current.rotation.y = satellite.gstime(new Date(simClock.simTimeMs));
+      meshRef.current.rotation.y = gmst(simClock.simTimeMs);
     }
   });
 

@@ -55,12 +55,17 @@ export default function App() {
           <TimeControls />
         </div>
       </div>
-      <div className="pointer-events-none absolute left-5 top-5 text-xs text-zinc-500">
-        {status === "loading" && <span className="animate-pulse">Loading orbital catalog…</span>}
-        {status === "ready" && catalog && (
-          <span>{catalog.count.toLocaleString()} active satellites</span>
-        )}
-        {status === "error" && <span className="text-red-400">Catalog failed to load</span>}
+      <div className="pointer-events-none absolute left-5 top-5">
+        <h1 className="text-sm font-semibold tracking-tight text-zinc-100">
+          Orbit<span className="text-sky-400">AI</span>
+        </h1>
+        <div className="mt-0.5 text-xs text-zinc-500">
+          {status === "loading" && <span className="animate-pulse">Loading orbital catalog…</span>}
+          {status === "ready" && catalog && (
+            <span>{catalog.count.toLocaleString()} active satellites</span>
+          )}
+          {status === "error" && <span className="text-red-400">Catalog failed to load</span>}
+        </div>
       </div>
     </main>
   );

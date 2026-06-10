@@ -43,8 +43,6 @@ export default function SearchBar() {
     return result;
   }, [catalog, query, missionMode]);
 
-  useEffect(() => setHighlight(0), [query]);
-
   useEffect(() => {
     const onClickAway = (e: MouseEvent) => {
       if (!containerRef.current?.contains(e.target as Node)) setOpen(false);
@@ -75,6 +73,7 @@ export default function SearchBar() {
         onChange={(e) => {
           setQuery(e.target.value);
           setOpen(true);
+          setHighlight(0);
         }}
         onFocus={() => setOpen(true)}
         onKeyDown={(e) => {

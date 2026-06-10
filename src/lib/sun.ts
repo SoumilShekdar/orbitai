@@ -16,6 +16,20 @@ export function julianDate(ms: number): number {
 }
 
 const DEG = Math.PI / 180;
+const TWO_PI = 2 * Math.PI;
+
+// Greenwich mean sidereal time (IAU 1982), radians.
+export function gmst(ms: number): number {
+  const tut1 = (julianDate(ms) - 2451545.0) / 36525.0;
+  let temp =
+    -6.2e-6 * tut1 * tut1 * tut1 +
+    0.093104 * tut1 * tut1 +
+    (876600.0 * 3600 + 8640184.812866) * tut1 +
+    67310.54841;
+  temp = ((temp * DEG) / 240.0) % TWO_PI;
+  if (temp < 0) temp += TWO_PI;
+  return temp;
+}
 
 // Low-precision solar position (Astronomical Almanac), good to ~0.01 deg.
 // Returns a unit vector toward the Sun in scene coordinates.
