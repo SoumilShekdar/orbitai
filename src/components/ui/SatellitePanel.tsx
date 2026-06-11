@@ -42,7 +42,7 @@ export default function SatellitePanel() {
   const periodMin = (2 * Math.PI) / el.nRadS / 60;
 
   return (
-    <div className="pointer-events-auto w-72 rounded-2xl border border-white/10 bg-black/55 p-4 backdrop-blur-xl">
+    <div className="pointer-events-auto min-h-0 max-h-[35dvh] w-full shrink overflow-y-auto rounded-2xl border border-white/10 bg-black/55 p-4 backdrop-blur-xl sm:max-h-none sm:w-72">
       <div className="mb-2 flex items-start justify-between gap-2">
         <div>
           <h2 className="text-sm font-semibold tracking-tight text-zinc-50">{meta.name}</h2>

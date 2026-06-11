@@ -46,14 +46,14 @@ export default function App() {
       <SceneRoot />
       <HoverTooltip />
       <div className="pointer-events-none absolute inset-0 flex flex-col">
-        <div className="flex justify-center pt-5">
+        <div className="flex justify-center pt-16 sm:pt-5">
           <SearchBar />
         </div>
-        <div className="flex flex-1 flex-col items-end gap-3 p-5">
+        <div className="flex flex-1 flex-col items-stretch gap-3 overflow-hidden p-4 sm:items-end sm:p-5">
           <MissionPanel />
           {(missionStatus === "idle" || selectedIndex !== missionSatIndex) && <SatellitePanel />}
         </div>
-        <div className="flex justify-center pb-6">
+        <div className="flex justify-center px-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:pb-6">
           <TimeControls />
         </div>
       </div>
