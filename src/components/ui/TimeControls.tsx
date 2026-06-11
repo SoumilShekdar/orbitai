@@ -28,6 +28,46 @@ function SimTimeReadout() {
   return <span className="font-mono text-xs tabular-nums text-zinc-400">{text}</span>;
 }
 
+const LIVE_TOLERANCE_MS = 2000;
+
+// Shows a LIVE badge while sim time tracks wall-clock time; once the
+// simulation diverges (speed, pause, or scrub), offers a one-click return.
+function LiveIndicator() {
+  const setPlaying = useSimStore((s) => s.setPlaying);
+  const setSpeed = useSimStore((s) => s.setSpeed);
+  const [isLive, setIsLive] = useState(true);
+
+  useEffect(() => {
+    const id = setInterval(
+      () => setIsLive(Math.abs(simClock.simTimeMs - Date.now()) < LIVE_TOLERANCE_MS),
+      250,
+    );
+    return () => clearInterval(id);
+  }, []);
+
+  if (isLive) {
+    return (
+      <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-400">
+        <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" />
+        LIVE
+      </span>
+    );
+  }
+  return (
+    <button
+      onClick={() => {
+        simClock.simTimeMs = Date.now();
+        setSpeed(1);
+        setPlaying(true);
+      }}
+      className="flex items-center gap-1.5 rounded-full border border-amber-300/40 px-2.5 py-1 text-xs font-medium text-amber-300 transition hover:bg-amber-300/10"
+    >
+      <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-300" />
+      Go live
+    </button>
+  );
+}
+
 export default function TimeControls() {
   const playing = useSimStore((s) => s.playing);
   const speed = useSimStore((s) => s.speed);
@@ -69,6 +109,7 @@ export default function TimeControls() {
       </div>
       <div className="h-4 w-px bg-white/10" />
       <SimTimeReadout />
+      <LiveIndicator />
     </div>
   );
 }
