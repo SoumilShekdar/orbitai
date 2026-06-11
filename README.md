@@ -10,8 +10,11 @@ congestion around the new satellite, and recommends safer orbits.
 
 - **Live Earth** — day/night terminator, city lights, atmosphere, stars, bloom.
 - **Live population** — ~15,600 active satellites from CelesTrak, propagated analytically
-  on the GPU (Keplerian elements + J2 precession per satellite as vertex attributes), so
-  motion stays smooth from 1x up to 1 day per second.
+  on the GPU. Each satellite's elements and secular rates come from real SGP4
+  initialization (satellite.js): Brouwer mean motion, J2 secular precession of
+  RAAN/argp/mean anomaly, and B*-drag decay — packed as vertex attributes so motion
+  stays smooth from 1x up to 1 day per second while tracking full SGP4 to within the
+  ~5–15 km short-period band.
 - **Time controls** — pause / 1x / 10x / 100x / 1000x / 1 day-per-second.
 - **Search & inspect** — fuzzy search by name or NORAD ID, camera fly-to, hover tooltips,
   click for live altitude / velocity / inclination / period and the orbit trail.
@@ -28,7 +31,8 @@ congestion around the new satellite, and recommends safer orbits.
 
 - **Next.js (App Router) + TypeScript**, deployed on Vercel
 - **Three.js via React Three Fiber** (+ drei, postprocessing)
-- **Neon Postgres + Drizzle** — cached CelesTrak GP catalog, refreshed daily by Vercel Cron
+- **Neon Postgres + Drizzle** — cached CelesTrak GP catalog, refreshed every 6 h by Vercel Cron
+- **satellite.js (v6, pure JS)** — SGP4 initialization for element/rate recovery
 - **Vercel AI SDK + AI Gateway** — mission parsing and report generation
   (default model `google/gemini-2.5-flash`, override with `AI_MODEL`)
 
@@ -56,6 +60,9 @@ curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/refr
 
 ## Accuracy disclaimer
 
-This is a vision demo, not aerospace software. Rendering uses a two-body Keplerian model
-with secular J2 precession (not full SGP4), conjunction counts are heuristic, and lifetime /
-revisit numbers are toy formulas. Do not plan real missions with it.
+This is a vision demo, not aerospace software. Rendering uses the secular part of SGP4
+(elements and rates from real SGP4 initialization, including J2 precession and B* drag);
+short-period periodics (~5–15 km bounded oscillation) and deep-space resonance/lunisolar
+terms (relevant for Molniya-class orbits) are not modeled. Launched satellites use a
+synthesized TLE with B* estimated from mass. Conjunction counts are heuristic, and
+lifetime / revisit numbers are toy formulas. Do not plan real missions with it.
