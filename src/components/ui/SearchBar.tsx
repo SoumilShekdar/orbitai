@@ -91,7 +91,7 @@ export default function SearchBar() {
           }
         }}
         placeholder="Describe your mission — or search satellites…"
-        className="w-full rounded-2xl border border-white/10 bg-black/50 px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 backdrop-blur-xl outline-none transition focus:border-white/25"
+        className="w-full rounded-2xl border border-white/10 bg-black/50 px-4 py-2.5 text-base text-zinc-100 placeholder-zinc-500 backdrop-blur-xl outline-none transition focus:border-white/25 sm:text-sm"
       />
 
       {missionError && !open && (

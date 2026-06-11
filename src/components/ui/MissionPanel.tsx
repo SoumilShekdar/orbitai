@@ -93,7 +93,7 @@ export default function MissionPanel() {
     Math.abs(report.recommendedAltitudeKm - params.altitudeKm) > 5;
 
   return (
-    <div className="pointer-events-auto max-h-[calc(100vh-12rem)] w-80 overflow-y-auto rounded-2xl border border-white/10 bg-black/55 p-4 backdrop-blur-xl">
+    <div className="pointer-events-auto min-h-0 max-h-[50dvh] w-full overflow-y-auto rounded-2xl border border-white/10 bg-black/55 p-4 backdrop-blur-xl sm:max-h-[calc(100dvh-12rem)] sm:w-80">
       {status === "parsing" && (
         <div className="py-2">
           <p className="animate-pulse text-sm text-zinc-300">Parsing mission with AI…</p>

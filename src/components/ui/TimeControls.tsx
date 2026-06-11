@@ -75,7 +75,7 @@ export default function TimeControls() {
   const setSpeed = useSimStore((s) => s.setSpeed);
 
   return (
-    <div className="pointer-events-auto flex items-center gap-3 rounded-2xl border border-white/10 bg-black/50 px-4 py-2.5 backdrop-blur-xl">
+    <div className="pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-x-3 gap-y-1.5 rounded-2xl border border-white/10 bg-black/50 px-3 py-2 backdrop-blur-xl sm:px-4 sm:py-2.5">
       <button
         onClick={() => setPlaying(!playing)}
         className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-zinc-100 transition hover:bg-white/20"
@@ -97,7 +97,7 @@ export default function TimeControls() {
           <button
             key={opt.value}
             onClick={() => setSpeed(opt.value)}
-            className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${
+            className={`rounded-full px-2.5 py-1.5 text-xs font-medium transition sm:py-1 ${
               speed === opt.value
                 ? "bg-white/90 text-black"
                 : "text-zinc-400 hover:bg-white/10 hover:text-zinc-100"
@@ -107,7 +107,7 @@ export default function TimeControls() {
           </button>
         ))}
       </div>
-      <div className="h-4 w-px bg-white/10" />
+      <div className="hidden h-4 w-px bg-white/10 sm:block" />
       <SimTimeReadout />
       <LiveIndicator />
     </div>
