@@ -9,6 +9,7 @@ import Atmosphere from "./Atmosphere";
 import Satellites from "./Satellites";
 import Picking from "./Picking";
 import OrbitTrail from "./OrbitTrail";
+import RiskOverlay from "./RiskOverlay";
 import LaunchSequence from "./LaunchSequence";
 import { useMissionStore } from "@/lib/mission/missionStore";
 import { simClock } from "@/lib/sim/clock";
@@ -38,7 +39,7 @@ export default function SceneRoot() {
     return () => {
       cameraRig.controls = null;
     };
-  });
+  }, []);
 
   const missionStats = useMissionStore((s) => s.stats);
   useEffect(() => {
@@ -63,6 +64,7 @@ export default function SceneRoot() {
       {catalog && <Satellites catalog={catalog} />}
       {catalog && <Picking catalog={catalog} />}
       {catalog && selectedIndex !== null && <OrbitTrail catalog={catalog} index={selectedIndex} />}
+      {catalog && <RiskOverlay catalog={catalog} />}
       {missionStatus === "launching" && <LaunchSequence />}
       <Stars radius={120} depth={60} count={6000} factor={3.5} saturation={0} fade speed={0.3} />
       <CameraControls

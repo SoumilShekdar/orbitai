@@ -34,6 +34,8 @@ export default function App() {
   const status = useCatalogStore((s) => s.status);
   const catalog = useCatalogStore((s) => s.catalog);
   const missionStatus = useMissionStore((s) => s.status);
+  const missionSatIndex = useMissionStore((s) => s.satIndex);
+  const selectedIndex = useUiStore((s) => s.selectedIndex);
 
   useEffect(() => {
     load();
@@ -49,7 +51,7 @@ export default function App() {
         </div>
         <div className="flex flex-1 flex-col items-end gap-3 p-5">
           <MissionPanel />
-          {missionStatus === "idle" && <SatellitePanel />}
+          {(missionStatus === "idle" || selectedIndex !== missionSatIndex) && <SatellitePanel />}
         </div>
         <div className="flex justify-center pb-6">
           <TimeControls />

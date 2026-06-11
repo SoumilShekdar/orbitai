@@ -1,6 +1,13 @@
 "use client";
 
+import * as THREE from "three";
 import { useMissionStore } from "@/lib/mission/missionStore";
+import { useCatalogStore } from "@/lib/sim/catalogStore";
+import { useUiStore } from "@/lib/sim/uiStore";
+import { simClock } from "@/lib/sim/clock";
+import { flyToPoint } from "@/lib/cameraRig";
+
+const tmp = new THREE.Vector3();
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
@@ -29,6 +36,43 @@ const DENSITY_COLOR = {
   MEDIUM: "text-amber-300",
   HIGH: "text-red-400",
 } as const;
+
+function rangeColor(rangeKm: number): string {
+  if (rangeKm < 50) return "text-red-400";
+  if (rangeKm < 250) return "text-amber-300";
+  return "text-zinc-200";
+}
+
+// Live ranges to the closest co-altitude satellites; click to trace one.
+function CloseApproaches() {
+  const proximity = useMissionStore((s) => s.proximity);
+  const catalog = useCatalogStore((s) => s.catalog);
+  const setSelected = useUiStore((s) => s.setSelected);
+  if (!catalog || proximity.length === 0) return null;
+
+  return (
+    <div className="py-1.5">
+      <span className="text-xs text-zinc-500">Closest traffic — live range</span>
+      <div className="mt-1">
+        {proximity.map((p) => (
+          <button
+            key={p.index}
+            onClick={() => {
+              setSelected(p.index);
+              flyToPoint(catalog.positionScene(p.index, simClock.simTimeMs, tmp));
+            }}
+            className="flex w-full items-center justify-between gap-3 rounded-md px-1.5 py-1 text-left transition hover:bg-white/10"
+          >
+            <span className="truncate text-xs text-zinc-300">{catalog.meta[p.index].name}</span>
+            <span className={`shrink-0 font-mono text-xs tabular-nums ${rangeColor(p.rangeKm)}`}>
+              {Math.round(p.rangeKm).toLocaleString()} km
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function MissionPanel() {
   const status = useMissionStore((s) => s.status);
@@ -137,6 +181,7 @@ export default function MissionPanel() {
                   )}
                   <Row label="Expected lifetime" value={`${stats.lifetimeYears} yr`} />
                   <Row label="Ground revisit" value={`${stats.revisitHours} h`} />
+                  <CloseApproaches />
                   {stats.nearbyOperators.length > 0 && (
                     <div className="py-1.5">
                       <span className="text-xs text-zinc-500">Nearby constellations</span>
@@ -178,6 +223,13 @@ export default function MissionPanel() {
                   )}
                 </div>
               )}
+
+              <button
+                onClick={reset}
+                className="mt-3 w-full rounded-xl border border-white/15 py-2 text-xs font-medium text-zinc-300 transition hover:bg-white/10"
+              >
+                Reset scenario
+              </button>
             </div>
           )}
         </>

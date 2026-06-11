@@ -11,6 +11,12 @@ export type MissionStatus = "idle" | "parsing" | "ready" | "launching" | "orbiti
 
 let nextNoradId = 90001;
 
+// Live range from the mission satellite to a nearby catalog satellite.
+export interface ProximityEntry {
+  index: number;
+  rangeKm: number;
+}
+
 interface MissionState {
   status: MissionStatus;
   prompt: string;
@@ -18,6 +24,7 @@ interface MissionState {
   satIndex: number | null;
   stats: TrafficStats | null;
   report: MissionReport | null;
+  proximity: ProximityEntry[];
   analyzing: boolean;
   error: string | null;
   parse: (prompt: string) => Promise<void>;
@@ -25,6 +32,7 @@ interface MissionState {
   insertSatellite: (elements: Elements) => void;
   finishLaunch: () => void;
   analyze: () => Promise<void>;
+  setProximity: (proximity: ProximityEntry[]) => void;
   acceptRecommendation: () => void;
   reset: () => void;
 }
@@ -36,6 +44,7 @@ export const useMissionStore = create<MissionState>((set, get) => ({
   satIndex: null,
   stats: null,
   report: null,
+  proximity: [],
   analyzing: false,
   error: null,
 
@@ -47,6 +56,7 @@ export const useMissionStore = create<MissionState>((set, get) => ({
       satIndex: null,
       stats: null,
       report: null,
+      proximity: [],
       error: null,
     });
     useUiStore.getState().setSelected(null);
@@ -139,6 +149,8 @@ export const useMissionStore = create<MissionState>((set, get) => ({
     }
   },
 
+  setProximity: (proximity) => set({ proximity }),
+
   acceptRecommendation: () => {
     const { satIndex, params, report } = get();
     const catalog = useCatalogStore.getState().catalog;
@@ -158,7 +170,14 @@ export const useMissionStore = create<MissionState>((set, get) => ({
   },
 
   reset: () => {
+    const { satIndex } = get();
     const catalog = useCatalogStore.getState().catalog;
+    const ui = useUiStore.getState();
+    if (satIndex !== null && catalog) {
+      if (ui.selectedIndex === satIndex) ui.setSelected(null);
+      if (ui.hoveredIndex === satIndex) ui.setHovered(null);
+      catalog.removeSatellite(satIndex);
+    }
     catalog?.recolor(useUiStore.getState().selectedIndex);
     set({
       status: "idle",
@@ -167,6 +186,7 @@ export const useMissionStore = create<MissionState>((set, get) => ({
       satIndex: null,
       stats: null,
       report: null,
+      proximity: [],
       analyzing: false,
       error: null,
     });

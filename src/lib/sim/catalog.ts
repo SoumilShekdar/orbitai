@@ -106,12 +106,12 @@ export class SatCatalog {
     this.elemC[i * 2 + 1] = size;
   }
 
-  // Single source of truth for point colors: launched > nearby > selected > default.
+  // Single source of truth for point colors: launched > selected > nearby > default.
   recolor(selected: number | null, nearby?: Set<number>) {
     for (let i = 0; i < this.count; i++) {
       if (this.meta[i].launched) this.setColor(i, LAUNCHED_COLOR);
-      else if (nearby?.has(i)) this.setColor(i, NEARBY_COLOR);
       else if (i === selected) this.setColor(i, SELECTED_COLOR);
+      else if (nearby?.has(i)) this.setColor(i, NEARBY_COLOR);
       else this.setColor(i, DEFAULT_COLOR);
     }
     this.version++;
@@ -127,6 +127,16 @@ export class SatCatalog {
     this.setSize(i, 2.2);
     this.version++;
     return i;
+  }
+
+  // Mission satellites are always appended, so removal only needs to support
+  // popping the most recent entry.
+  removeSatellite(i: number) {
+    if (i !== this.count - 1) throw new Error("only the last satellite can be removed");
+    this.count--;
+    this.meta.pop();
+    this.elements.pop();
+    this.version++;
   }
 
   // Move a satellite to a new circular altitude, preserving its current
