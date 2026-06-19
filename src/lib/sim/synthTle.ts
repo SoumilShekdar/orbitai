@@ -3,6 +3,7 @@
 // J2 secular rates, same B*-drag evolution, same propagation everywhere.
 
 import { Elements, elementsFromTle, MU } from "./kepler";
+import { DRAG_CD, dragAreaM2 } from "./decay";
 
 const DEG = 180 / Math.PI;
 const RE_KM = 6378.135;
@@ -88,10 +89,10 @@ export function elementsForOrbit(o: SynthOrbit): Elements {
 }
 
 // Crude ballistic estimate for a launched satellite: cross-section from a
-// cube-scaling law, Cd 2.2, B* = rho0 * Cd * A / (2m) in 1/earth-radii.
+// cube-scaling law (shared with the decay model), B* = rho0 * Cd * A / (2m)
+// in 1/earth-radii.
 export function estimateBstar(massKg: number): number {
-  const areaM2 = Math.pow(Math.max(1, massKg) / 100, 2 / 3);
-  return (0.157 * 2.2 * areaM2) / (2 * Math.max(1, massKg));
+  return (0.157 * DRAG_CD * dragAreaM2(massKg)) / (2 * Math.max(1, massKg));
 }
 
 export { RE_KM };

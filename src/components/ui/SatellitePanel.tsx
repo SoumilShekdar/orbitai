@@ -5,7 +5,7 @@ import { useUiStore } from "@/lib/sim/uiStore";
 import { useCatalogStore } from "@/lib/sim/catalogStore";
 import { simClock } from "@/lib/sim/clock";
 import { positionEciKm, speedKmS } from "@/lib/sim/kepler";
-import { EARTH_RADIUS_KM } from "@/lib/constants";
+import { EARTH_RADIUS_EQ_KM } from "@/lib/constants";
 
 const scratch: number[] = [0, 0, 0];
 
@@ -29,7 +29,7 @@ export default function SatellitePanel() {
     const update = () => {
       const eci = positionEciKm(catalog.elements[selectedIndex], simClock.simTimeMs, scratch);
       const r = Math.hypot(eci[0], eci[1], eci[2]);
-      setLive({ altKm: r - EARTH_RADIUS_KM, speed: speedKmS(catalog.elements[selectedIndex], r) });
+      setLive({ altKm: r - EARTH_RADIUS_EQ_KM, speed: speedKmS(catalog.elements[selectedIndex], r) });
     };
     update();
     const id = setInterval(update, 250);
@@ -66,8 +66,8 @@ export default function SatellitePanel() {
         <Row label="Period" value={`${periodMin.toFixed(1)} min`} />
         <Row
           label="Apogee / Perigee"
-          value={`${Math.round(el.aKm * (1 + el.e) - EARTH_RADIUS_KM)} / ${Math.round(
-            el.aKm * (1 - el.e) - EARTH_RADIUS_KM,
+          value={`${Math.round(el.aKm * (1 + el.e) - EARTH_RADIUS_EQ_KM)} / ${Math.round(
+            el.aKm * (1 - el.e) - EARTH_RADIUS_EQ_KM,
           )} km`}
         />
       </div>
