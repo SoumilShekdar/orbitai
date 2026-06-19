@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { Elements, positionEciKm } from "@/lib/sim/kepler";
 import { elementsForOrbit, estimateBstar } from "@/lib/sim/synthTle";
 import { gmst } from "@/lib/sun";
-import { EARTH_RADIUS_KM, KM_TO_UNITS } from "@/lib/constants";
+import { EARTH_RADIUS_EQ_KM, KM_TO_UNITS } from "@/lib/constants";
 
 const DEG = Math.PI / 180;
 
@@ -19,6 +19,26 @@ export function siteDirectionScene(latDeg: number, lonDeg: number, timeMs: numbe
 export interface InsertionPlan {
   elements: Elements;
   insertionPosScene: THREE.Vector3; // where the rocket releases the satellite
+}
+
+export interface LaunchGeometry {
+  feasible: boolean; // can a direct ascent reach this inclination from this site?
+  minInclinationDeg: number; // lowest inclination reachable directly = |site latitude|
+  launchAzimuthDeg: number; // inertial heading of the (northbound) ascending pass, 0=N, 90=E
+}
+
+// A direct ascent can only inject into an orbit plane that contains the launch
+// point, so the inclination cannot be less than the site's (absolute) latitude;
+// a lower target needs a dogleg or an on-orbit plane change. The required
+// inertial launch azimuth comes from sin(Az) = cos(i) / cos(latitude).
+export function launchGeometry(inclinationDeg: number, siteLatDeg: number): LaunchGeometry {
+  const lat = Math.abs(siteLatDeg) * DEG;
+  const inc = inclinationDeg * DEG;
+  const minInclinationDeg = Math.abs(siteLatDeg);
+  const ratio = Math.cos(inc) / Math.cos(lat);
+  const feasible = Math.abs(ratio) <= 1 + 1e-9;
+  const azDeg = (Math.asin(Math.max(-1, Math.min(1, ratio))) * 180) / Math.PI;
+  return { feasible, minInclinationDeg, launchAzimuthDeg: (azDeg + 360) % 360 };
 }
 
 // Build a circular orbit whose plane contains the launch site, inserting the
@@ -54,7 +74,7 @@ export function planInsertion(
     e: 0.0005,
     argpRad: 0,
     mRad: uIns, // e ~ 0 so mean anomaly ~ argument of latitude
-    aKm: EARTH_RADIUS_KM + altitudeKm,
+    aKm: EARTH_RADIUS_EQ_KM + altitudeKm,
     bstar: estimateBstar(massKg),
   });
 

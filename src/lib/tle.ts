@@ -12,7 +12,6 @@ export interface ParsedTle {
 }
 
 const RE_KM = 6378.135; // WGS72 equatorial radius used by SGP4
-const EARTH_RADIUS_KM = 6371;
 const DEG = 180 / Math.PI;
 
 // Alpha-5 catalog numbers: first char A-Z (minus I, O) encodes 10-33.
@@ -55,8 +54,8 @@ export function parseTleCatalog(text: string): ParsedTle[] {
       tleLine1: l1,
       tleLine2: l2,
       inclination: rec.inclo * DEG,
-      apoapsisKm: aKm * (1 + rec.ecco) - EARTH_RADIUS_KM,
-      periapsisKm: aKm * (1 - rec.ecco) - EARTH_RADIUS_KM,
+      apoapsisKm: aKm * (1 + rec.ecco) - RE_KM,
+      periapsisKm: aKm * (1 - rec.ecco) - RE_KM,
       epoch: new Date((rec.jdsatepoch - 2440587.5) * 86400000),
     });
   }

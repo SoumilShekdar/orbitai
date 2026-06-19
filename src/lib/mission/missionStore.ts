@@ -6,6 +6,7 @@ import { useUiStore } from "@/lib/sim/uiStore";
 import { useSimStore } from "@/lib/sim/store";
 import { simClock } from "@/lib/sim/clock";
 import { Elements } from "@/lib/sim/kepler";
+import { sunSyncInclinationDeg } from "@/lib/constants";
 
 export type MissionStatus = "idle" | "parsing" | "ready" | "launching" | "orbiting";
 
@@ -155,15 +156,23 @@ export const useMissionStore = create<MissionState>((set, get) => ({
     const { satIndex, params, report } = get();
     const catalog = useCatalogStore.getState().catalog;
     if (satIndex === null || !params || !report || !catalog) return;
-    catalog.changeAltitude(satIndex, report.recommendedAltitudeKm, simClock.simTimeMs);
+    // A sun-synchronous orbit must retarget its inclination to stay
+    // sun-synchronous at the new altitude; other orbit types keep theirs.
+    const ssoInclinationDeg =
+      params.orbitType === "SSO"
+        ? sunSyncInclinationDeg(report.recommendedAltitudeKm)
+        : undefined;
+    catalog.changeAltitude(
+      satIndex,
+      report.recommendedAltitudeKm,
+      simClock.simTimeMs,
+      ssoInclinationDeg,
+    );
     set({
       params: {
         ...params,
         altitudeKm: report.recommendedAltitudeKm,
-        inclinationDeg:
-          params.orbitType === "SSO"
-            ? 96.6 + report.recommendedAltitudeKm * 0.00185
-            : params.inclinationDeg,
+        inclinationDeg: ssoInclinationDeg ?? params.inclinationDeg,
       },
     });
     void get().analyze();

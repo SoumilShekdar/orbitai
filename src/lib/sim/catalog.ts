@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { Elements, elementsFromTle, positionEciKm, dragTempa } from "./kepler";
 import { elementsForOrbit } from "./synthTle";
-import { EARTH_RADIUS_KM, KM_TO_UNITS } from "../constants";
+import { EARTH_RADIUS_EQ_KM, KM_TO_UNITS } from "../constants";
 
 export interface SatMeta {
   noradId: number;
@@ -142,19 +142,21 @@ export class SatCatalog {
   // Move a satellite to a new circular altitude, preserving its current
   // angular position so the point doesn't jump. Re-runs SGP4 init via a
   // synthesized TLE so the new orbit carries proper J2 and drag rates.
-  changeAltitude(i: number, newAltKm: number, timeMs: number) {
+  // An optional new inclination lets a sun-synchronous orbit retarget its
+  // inclination to stay sun-synchronous at the new altitude.
+  changeAltitude(i: number, newAltKm: number, timeMs: number, newInclinationDeg?: number) {
     const el = this.elements[i];
     const dt = (timeMs - el.epochMs) / 1000;
     const TWO_PI = 2 * Math.PI;
     const next = elementsForOrbit({
       noradId: this.meta[i].noradId,
       epochMs: timeMs,
-      incRad: el.incRad,
+      incRad: newInclinationDeg !== undefined ? (newInclinationDeg * Math.PI) / 180 : el.incRad,
       raanRad: (el.raan0 + el.raanDot * dt + el.nodecf * dt * dt) % TWO_PI,
       e: el.e,
       argpRad: (el.argp0 + el.argpDot * dt) % TWO_PI,
       mRad: (el.m0 + el.mdot * dt + el.mddot * dt * dt) % TWO_PI,
-      aKm: EARTH_RADIUS_KM + newAltKm,
+      aKm: EARTH_RADIUS_EQ_KM + newAltKm,
       bstar: el.bstar,
     });
     this.elements[i] = next;

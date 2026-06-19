@@ -1,6 +1,7 @@
 import { generateObject } from "ai";
 import { z } from "zod";
 import { LAUNCH_SITES, resolveLaunchSite } from "@/lib/mission/launchSites";
+import { sunSyncInclinationDeg } from "@/lib/constants";
 
 export const maxDuration = 60;
 
@@ -27,7 +28,8 @@ Known launch sites (prefer these; pick the most plausible for the country or ope
 ${LAUNCH_SITES.map((s) => `- ${s.name} (${s.country}): lat ${s.lat}, lon ${s.lon}`).join("\n")}
 
 Rules:
-- "SSO" / "sun-synchronous" means orbitType SSO with inclination ≈ 96.6 + altitude_km * 0.00185 degrees.
+- "SSO" / "sun-synchronous" means orbitType SSO. Leave inclinationDeg approximate; the server
+  recomputes the exact sun-synchronous inclination from the altitude.
 - If the user mentions a country with a known site, use that site (e.g. India -> Sriharikota).
 - If no site is mentioned, choose Cape Canaveral.
 - Altitudes below 200 km or above 2000 km should be clamped into the 200-2000 km LEO band.`;
@@ -53,7 +55,7 @@ export async function POST(request: Request) {
     );
     const altitudeKm = Math.min(2000, Math.max(200, object.altitudeKm));
     const inclinationDeg =
-      object.orbitType === "SSO" ? 96.6 + altitudeKm * 0.00185 : object.inclinationDeg;
+      object.orbitType === "SSO" ? sunSyncInclinationDeg(altitudeKm) : object.inclinationDeg;
 
     return Response.json({
       missionName: object.missionName,

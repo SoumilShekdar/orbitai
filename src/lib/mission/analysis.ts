@@ -1,5 +1,6 @@
 import { SatCatalog } from "@/lib/sim/catalog";
-import { EARTH_RADIUS_KM } from "@/lib/constants";
+import { orbitalLifetimeYears } from "@/lib/sim/decay";
+import { EARTH_RADIUS_EQ_KM } from "@/lib/constants";
 
 const RAD = 180 / Math.PI;
 
@@ -22,7 +23,7 @@ function countAltBand(catalog: SatCatalog, altitudeKm: number, exclude: number):
   let count = 0;
   for (let i = 0; i < catalog.count; i++) {
     if (i === exclude) continue;
-    const meanAlt = catalog.elements[i].aKm - EARTH_RADIUS_KM;
+    const meanAlt = catalog.elements[i].aKm - EARTH_RADIUS_EQ_KM;
     if (Math.abs(meanAlt - altitudeKm) <= ALT_BAND_KM) count++;
   }
   return count;
@@ -34,7 +35,7 @@ export function analyzeTraffic(
   massKg: number,
 ): TrafficStats {
   const el = catalog.elements[satIndex];
-  const altitudeKm = el.aKm - EARTH_RADIUS_KM;
+  const altitudeKm = el.aKm - EARTH_RADIUS_EQ_KM;
   const inclDeg = el.incRad * RAD;
 
   const nearbyIndices: number[] = [];
@@ -45,7 +46,7 @@ export function analyzeTraffic(
   for (let i = 0; i < catalog.count; i++) {
     if (i === satIndex) continue;
     const other = catalog.elements[i];
-    const meanAlt = other.aKm - EARTH_RADIUS_KM;
+    const meanAlt = other.aKm - EARTH_RADIUS_EQ_KM;
     const inAltBand = Math.abs(meanAlt - altitudeKm) <= ALT_BAND_KM;
     const inInclBand = Math.abs(other.incRad * RAD - inclDeg) <= INCL_BAND_DEG;
     if (inAltBand) {
@@ -70,9 +71,8 @@ export function analyzeTraffic(
     .slice(0, 4)
     .map(([operator, count]) => ({ operator, count }));
 
-  // Drag lifetime heuristic tuned to give ~5.8 years at 550 km / 250 kg.
-  const lifetimeYears =
-    Math.min(100, 0.0008 * Math.exp(altitudeKm / 62)) * Math.pow(massKg / 250, 0.3);
+  // Physics-based drag lifetime (King-Hele + exponential atmosphere); see decay.ts.
+  const lifetimeYears = orbitalLifetimeYears(altitudeKm, massKg);
 
   // Ground revisit heuristic for a single imaging satellite.
   const revisitHours = (24 / 3.6) * (550 / altitudeKm);

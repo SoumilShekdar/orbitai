@@ -6,8 +6,12 @@ import { useCatalogStore } from "@/lib/sim/catalogStore";
 import { useUiStore } from "@/lib/sim/uiStore";
 import { simClock } from "@/lib/sim/clock";
 import { flyToPoint } from "@/lib/cameraRig";
+import { launchGeometry } from "@/lib/mission/orbit";
 
 const tmp = new THREE.Vector3();
+
+const COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+const cardinal = (deg: number) => COMPASS[Math.round(deg / 45) % 8];
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
@@ -126,13 +130,31 @@ export default function MissionPanel() {
             )}
           </div>
 
-          <div className="divide-y divide-white/5">
-            <Row label="Mass" value={`${params.massKg} kg`} />
-            <Row label="Orbit" value={ORBIT_LABEL[params.orbitType]} />
-            <Row label="Altitude" value={`${Math.round(params.altitudeKm)} km`} />
-            <Row label="Inclination" value={`${params.inclinationDeg.toFixed(2)}°`} />
-            <Row label="Launch site" value={params.launchSite.name.split(",")[0]} />
-          </div>
+          {(() => {
+            const geo = launchGeometry(params.inclinationDeg, params.launchSite.lat);
+            return (
+              <>
+                <div className="divide-y divide-white/5">
+                  <Row label="Mass" value={`${params.massKg} kg`} />
+                  <Row label="Orbit" value={ORBIT_LABEL[params.orbitType]} />
+                  <Row label="Altitude" value={`${Math.round(params.altitudeKm)} km`} />
+                  <Row label="Inclination" value={`${params.inclinationDeg.toFixed(2)}°`} />
+                  <Row label="Launch site" value={params.launchSite.name.split(",")[0]} />
+                  <Row
+                    label="Launch azimuth"
+                    value={`${Math.round(geo.launchAzimuthDeg)}° ${cardinal(geo.launchAzimuthDeg)}`}
+                  />
+                </div>
+                {!geo.feasible && (
+                  <div className="mt-3 rounded-lg border border-amber-400/30 bg-amber-400/10 p-2.5 text-[11px] leading-relaxed text-amber-200">
+                    Inclination {params.inclinationDeg.toFixed(1)}° is below the site latitude (
+                    {geo.minInclinationDeg.toFixed(1)}°). A direct ascent can&apos;t reach it — a
+                    dogleg or on-orbit plane change would be required.
+                  </div>
+                )}
+              </>
+            );
+          })()}
 
           {status === "ready" && (
             <button
