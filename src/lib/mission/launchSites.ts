@@ -20,13 +20,42 @@ export const LAUNCH_SITES: LaunchSite[] = [
   { name: "Wallops Flight Facility", country: "USA", lat: 37.94, lon: -75.47 },
 ];
 
+// Generic words shared across many pad names ("Space Force Base", "Space
+// Launch Complex", "Satellite Launch Center"). Matching on these would snap any
+// site to whichever pad lists them first, so they can't be distinguishing keys.
+const GENERIC_SITE_WORDS = new Set([
+  "space",
+  "centre",
+  "center",
+  "force",
+  "base",
+  "launch",
+  "complex",
+  "station",
+  "site",
+  "satellite",
+  "cosmodrome",
+  "flight",
+  "facility",
+]);
+
 // Snap model-provided coordinates to a known pad when the name matches,
 // so hallucinated lat/lons can't put the rocket in the ocean.
 export function resolveLaunchSite(name: string, lat: number, lon: number): LaunchSite {
   const lower = name.toLowerCase();
+  // Prefer a distinctive token in the pad name (e.g. "vandenberg", "baikonur").
   for (const site of LAUNCH_SITES) {
-    const keys = site.name.toLowerCase().split(/[,\s]+/);
-    if (keys.some((k) => k.length > 4 && lower.includes(k)) || lower.includes(site.country.toLowerCase())) {
+    const keys = site.name
+      .toLowerCase()
+      .split(/[,\s]+/)
+      .filter((k) => k.length > 4 && !GENERIC_SITE_WORDS.has(k));
+    if (keys.some((k) => lower.includes(k))) {
+      return site;
+    }
+  }
+  // Fall back to country only if no name matched (e.g. "India" -> Sriharikota).
+  for (const site of LAUNCH_SITES) {
+    if (lower.includes(site.country.toLowerCase())) {
       return site;
     }
   }
